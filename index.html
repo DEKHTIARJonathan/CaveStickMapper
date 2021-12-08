@@ -1,0 +1,78 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>A Basic HTML5 Template</title>
+  <meta name="description" content="A simple HTML5 Template for new projects.">
+  <meta name="author" content="SitePoint">
+
+  <meta property="og:title" content="A Basic HTML5 Template">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://www.sitepoint.com/a-basic-html5-template/">
+  <meta property="og:description" content="A simple HTML5 Template for new projects.">
+  <meta property="og:image" content="image.png">
+
+  <link rel="icon" href="/favicon.ico">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+
+  <!-- <link rel="stylesheet" href="css/styles.css?v=1.0"> -->
+
+  <style media="screen">
+    body {
+      background-color: ivory;
+      padding: 10px;
+    }
+
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      border: 1px solid red;
+    }
+
+    .wrapper {
+      position: relative;
+    }
+
+    #canvas_grid{
+      z-index: 1;
+    }
+
+    #canvas{
+      z-index: 999;
+    }
+
+    #button_row {
+      position: absolute;
+      top: 745;
+    }
+  </style>
+
+</head>
+
+<body>
+  <p>Drag to draw lines</p>
+  <div>Swim Heading: <div id="swim_heading" style="display: inline;"></div></div>
+  <div>Segment Swim Distance: <div id="segment_distance" style="display: inline;"></div></div>
+  <div>Edge Swim Distance: <div id="edge_distance" style="display: inline;"></div></div>
+
+  <br/>
+  <div class="wrapper">
+    <canvas id="canvas_grid" height="730"></canvas>
+    <canvas id="canvas" height="730"></canvas>
+    <div id="button_row">
+      <button id="undo">Undo Last Action</button>
+      <button id="clear">Clear Canvas</button>
+    </div>
+  </div>
+  
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script src="main.js"></script>
+</body>
+
+</html>

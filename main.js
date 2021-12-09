@@ -108,9 +108,8 @@ class CanvasManager {
 
     this.max_canvas_size = 16384;
 
-    this.original_camera_loc = {x: -1, y: -1};
-
-    this.camera_offset = {
+    // Camera is positioned at the top left corner, not the middle of the scene
+    this.camera_location = {
       x: (this.max_canvas_size/2) - (this.canvas.width()/2),
       y: (this.max_canvas_size/2) - (this.canvas.height()/2),
     };
@@ -124,25 +123,17 @@ class CanvasManager {
 
   }
 
-  #reset_ctx_state() {
+  #reset_ctx_state(clear_grid=false) {    
     this.ctx.clearRect(0, 0, this.max_canvas_size, this.max_canvas_size);
+    if (clear_grid) {
+      this.ctx_grid.clearRect(0, 0, this.max_canvas_size, this.max_canvas_size);
+    }
   }
 
   #draw_grid(){
-    this.ctx_grid.clearRect(0, 0, this.max_canvas_size, this.max_canvas_size);
-
     this.ctx_grid.strokeStyle = "black";
     this.ctx_grid.lineWidth = 1;
     this.ctx_grid.globalAlpha = 0.1;
-
-    this.ctx.translate(
-      -(this.camera_offset.x - (this.canvas.width()/2)), 
-      -(this.camera_offset.y - (this.canvas.height()/2)), 
-    );
-    this.ctx_grid.translate(
-      -(this.camera_offset.x - (this.canvas.width()/2)), 
-      -(this.camera_offset.y - (this.canvas.height()/2)), 
-    );
 
     for (var x = 0; x <= this.max_canvas_size; x += this.distance_scale_factor) {
       this.ctx_grid.moveTo(0.5 + x, 0);
@@ -171,17 +162,8 @@ class CanvasManager {
     var mouseX = parseInt(e.clientX - this.offsetX);
     var mouseY = parseInt(e.clientY - this.offsetY);
 
-    // console.log("mouseX: " + mouseX)
-    // console.log("mouseY: " + mouseY)
-
-    mouseX = this.camera_offset.x - (this.canvas.width()/2) + mouseX;
-    mouseY = this.camera_offset.y - (this.canvas.height()/2) + mouseY;
-
-    // console.log("cam loc x: " + this.camera_offset.x)
-    // console.log("cam loc y: " + this.camera_offset.y)
-    // console.log("mouseX: " + mouseX)
-    // console.log("mouseY: " + mouseY)
-    // console.log("=================")
+    mouseX = this.camera_location.x + mouseX;
+    mouseY = this.camera_location.y + mouseY;
 
     return {x: mouseX, y: mouseY};
   }
@@ -238,6 +220,8 @@ class CanvasManager {
 
     $("#button_row").css({ top: (this.ctx.canvas.height + 15) + "px" });
 
+    this.#reset_ctx_state(/*clear_grid=*/false);
+    this.ctx.translate(-this.camera_location.x, -this.camera_location.y);
     this.#draw_grid();
     this.#redrawStoredLines();
   }
@@ -298,7 +282,11 @@ class CanvasManager {
         y2: mouseY
       });
 
-      this.current_segment_length += get_distance(this.startX, mouseX, this.startY, mouseY, this.distance_scale_factor);
+      this.current_segment_length += get_distance(
+        this.startX, mouseX, 
+        this.startY, mouseY, 
+        this.distance_scale_factor
+      );
 
       this.#redrawStoredLines();
   
@@ -310,13 +298,12 @@ class CanvasManager {
   }
 
   startPanningCamera(e) {
+    if (this.isDrawing) {
+      this.stop_drawing();
+    }
+    console.log(this.stored_segments);
     this.startX = parseInt(e.clientX - this.offsetX);
     this.startY = parseInt(e.clientY - this.offsetY);
-
-    this.original_camera_loc = {
-      x: this.camera_offset.x,
-      y: this.camera_offset.y
-    };
   }
 
   stopPanningCamera(e) {
@@ -330,18 +317,24 @@ class CanvasManager {
     var delta_x = mouseX - this.startX;
     var delta_y = mouseY - this.startY;
 
-    this.camera_offset.x = this.original_camera_loc.x + delta_x;
-    this.camera_offset.y = this.original_camera_loc.y + delta_y;
+    // Reset the camera location to the new origin
+    this.camera_location.x -= delta_x;
+    this.camera_location.y -= delta_y;
 
+    // Move the camera to the new place
     this.ctx.translate(delta_x, delta_y);
-    this.ctx_grid.translate(delta_x, delta_y);
 
+    // Redraw the scene
     this.#reset_ctx_state();
     this.#redrawStoredLines();
 
     if (!is_final){
+      // Reset the camera location to the previous origin for the next iteration
+      this.camera_location.x += delta_x;
+      this.camera_location.y += delta_y;
+
+      // Undo the translation for the next iteration
       this.ctx.translate(-delta_x, -delta_y);
-      this.ctx_grid.translate(-delta_x, -delta_y);
     }
 
   }
@@ -383,11 +376,6 @@ $( document ).ready(function() {
     stroke_width=3
   );
 
-  $("#canvas").on('click', function(e) {
-    cvs_manager.drawing_step(e);
-    e.stopPropagation();
-  });
-
   function handle_mouse_move(e) {
     cvs_manager.handleMouseMove(e);
     e.stopPropagation();
@@ -398,11 +386,19 @@ $( document ).ready(function() {
     e.stopPropagation();
   }
 
+  $("#canvas").on('click', function(e) {
+    // Necessary to handle properly the mousedown event
+    e.stopPropagation();
+  });
+
   $("#canvas").on('mousedown', function(e) {
-    if( e.which == 2 ) {  // Middle click of the mouse
+    if ( e.which == 2 ) {  // Middle click of the mouse
       cvs_manager.startPanningCamera(e);
       this.removeEventListener("mousemove", handle_mouse_move);
       this.addEventListener("mousemove", pan_canvas);
+    } else {
+      cvs_manager.drawing_step(e);
+      e.preventDefault();
     }
   });
 
@@ -411,6 +407,8 @@ $( document ).ready(function() {
       cvs_manager.stopPanningCamera(e);
       this.addEventListener("mousemove", handle_mouse_move);
       this.removeEventListener("mousemove", pan_canvas);
+    } else {
+      e.preventDefault();
     }
   });
 

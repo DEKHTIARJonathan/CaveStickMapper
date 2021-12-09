@@ -80,7 +80,7 @@ class CanvasManager {
     distance_scale_factor=7, 
     stroke_style="orange", 
     stroke_width=3, 
-    refresh_rate=10
+    refresh_rate=30
   ) {
 
     this.canvas = $("#canvas");
@@ -106,28 +106,52 @@ class CanvasManager {
     this.stroke_width = stroke_width;
     this.distance_scale_factor = distance_scale_factor;
 
+    this.max_canvas_size = 16384;
+
+    this.original_camera_loc = {x: -1, y: -1};
+
+    this.camera_offset = {
+      x: (this.max_canvas_size/2) - (this.canvas.width()/2),
+      y: (this.max_canvas_size/2) - (this.canvas.height()/2),
+    };
+
     this.rescale_canvas();
+
+    this.cameraZoom = 1;
+    this.MAX_ZOOM = 5;
+    this.MIN_ZOOM = 0.1;
+    this.SCROLL_SENSITIVITY = 0.0005;
+
   }
 
   #reset_ctx_state() {
-    this.ctx.clearRect(0, 0, this.canvas.width(), this.canvas.height());
+    this.ctx.clearRect(0, 0, this.max_canvas_size, this.max_canvas_size);
   }
 
   #draw_grid(){
-    this.ctx_grid.clearRect(0, 0, this.canvas_grid.width(), this.canvas_grid.height());
+    this.ctx_grid.clearRect(0, 0, this.max_canvas_size, this.max_canvas_size);
 
     this.ctx_grid.strokeStyle = "black";
     this.ctx_grid.lineWidth = 1;
     this.ctx_grid.globalAlpha = 0.1;
 
-    for (var x = 0; x <= this.ctx_grid.canvas.width; x += this.distance_scale_factor) {
+    this.ctx.translate(
+      -(this.camera_offset.x - (this.canvas.width()/2)), 
+      -(this.camera_offset.y - (this.canvas.height()/2)), 
+    );
+    this.ctx_grid.translate(
+      -(this.camera_offset.x - (this.canvas.width()/2)), 
+      -(this.camera_offset.y - (this.canvas.height()/2)), 
+    );
+
+    for (var x = 0; x <= this.max_canvas_size; x += this.distance_scale_factor) {
       this.ctx_grid.moveTo(0.5 + x, 0);
-      this.ctx_grid.lineTo(0.5 + x, this.ctx_grid.canvas.height);
+      this.ctx_grid.lineTo(0.5 + x, this.max_canvas_size);
     }
 
-    for (var x = 0; x <= this.ctx_grid.canvas.height; x += this.distance_scale_factor) {
+    for (var x = 0; x <= this.max_canvas_size; x += this.distance_scale_factor) {
       this.ctx_grid.moveTo(0, 0.5 + x);
-      this.ctx_grid.lineTo(this.ctx_grid.canvas.width, 0.5 + x);
+      this.ctx_grid.lineTo(this.max_canvas_size, 0.5 + x);
     }
 
     this.ctx_grid.stroke();
@@ -141,6 +165,25 @@ class CanvasManager {
     this.ctx.beginPath();
     this.ctx.arc(x, y, 2, 0, 2 * Math.PI, true);
     this.ctx.fill();
+  }
+
+  #get_corrected_mouse_position(e){
+    var mouseX = parseInt(e.clientX - this.offsetX);
+    var mouseY = parseInt(e.clientY - this.offsetY);
+
+    // console.log("mouseX: " + mouseX)
+    // console.log("mouseY: " + mouseY)
+
+    mouseX = this.camera_offset.x - (this.canvas.width()/2) + mouseX;
+    mouseY = this.camera_offset.y - (this.canvas.height()/2) + mouseY;
+
+    // console.log("cam loc x: " + this.camera_offset.x)
+    // console.log("cam loc y: " + this.camera_offset.y)
+    // console.log("mouseX: " + mouseX)
+    // console.log("mouseY: " + mouseY)
+    // console.log("=================")
+
+    return {x: mouseX, y: mouseY};
   }
 
   #redrawStoredLines() {
@@ -232,11 +275,12 @@ class CanvasManager {
   }
 
   drawing_step(e) {
+    var mouse_pos = this.#get_corrected_mouse_position(e);
+    var mouseX = mouse_pos.x;
+    var mouseY = mouse_pos.y;
+
     if (!this.isDrawing) {
       // Starting to draw
-      var mouseX = parseInt(e.clientX - this.offsetX);
-      var mouseY = parseInt(e.clientY - this.offsetY);
-
       this.startX = mouseX;
       this.startY = mouseY;
 
@@ -246,10 +290,7 @@ class CanvasManager {
       // Adding a new segment
       this.stored_segments.push([]);
     } else {
-      // Adding a new point
-      var mouseX = parseInt(e.clientX - this.offsetX);
-      var mouseY = parseInt(e.clientY - this.offsetY);
-      
+      // Adding a new point      
       this.stored_segments[this.stored_segments.length - 1].push({
         x1: this.startX,
         y1: this.startY,
@@ -268,6 +309,43 @@ class CanvasManager {
     }
   }
 
+  startPanningCamera(e) {
+    this.startX = parseInt(e.clientX - this.offsetX);
+    this.startY = parseInt(e.clientY - this.offsetY);
+
+    this.original_camera_loc = {
+      x: this.camera_offset.x,
+      y: this.camera_offset.y
+    };
+  }
+
+  stopPanningCamera(e) {
+    this.handlePanningCamera(e, /*is_final=*/true);
+  }
+
+  handlePanningCamera(e, is_final=false) {
+    var mouseX = parseInt(e.clientX - this.offsetX);
+    var mouseY = parseInt(e.clientY - this.offsetY);
+
+    var delta_x = mouseX - this.startX;
+    var delta_y = mouseY - this.startY;
+
+    this.camera_offset.x = this.original_camera_loc.x + delta_x;
+    this.camera_offset.y = this.original_camera_loc.y + delta_y;
+
+    this.ctx.translate(delta_x, delta_y);
+    this.ctx_grid.translate(delta_x, delta_y);
+
+    this.#reset_ctx_state();
+    this.#redrawStoredLines();
+
+    if (!is_final){
+      this.ctx.translate(-delta_x, -delta_y);
+      this.ctx_grid.translate(-delta_x, -delta_y);
+    }
+
+  }
+
   handleMouseMove(e) {
     if (!this.isDrawing) {
       return;
@@ -279,8 +357,9 @@ class CanvasManager {
 
     this.#redrawStoredLines();
 
-    var mouseX = parseInt(e.clientX - this.offsetX);
-    var mouseY = parseInt(e.clientY - this.offsetY);
+    var mouse_pos = this.#get_corrected_mouse_position(e);
+    var mouseX = mouse_pos.x;
+    var mouseY = mouse_pos.y;
     
     // draw the current line
     this.ctx.beginPath();
@@ -304,42 +383,66 @@ $( document ).ready(function() {
     stroke_width=3
   );
 
-  $("#canvas").mousemove(function(e) {
-    cvs_manager.handleMouseMove(e);
+  $("#canvas").on('click', function(e) {
+    cvs_manager.drawing_step(e);
     e.stopPropagation();
   });
 
-  $("#canvas").mouseout(function(e) {
+  function handle_mouse_move(e) {
+    cvs_manager.handleMouseMove(e);
+    e.stopPropagation();
+  }
+
+  function pan_canvas(e) {
+    cvs_manager.handlePanningCamera(e);
+    e.stopPropagation();
+  }
+
+  $("#canvas").on('mousedown', function(e) {
+    if( e.which == 2 ) {  // Middle click of the mouse
+      cvs_manager.startPanningCamera(e);
+      this.removeEventListener("mousemove", handle_mouse_move);
+      this.addEventListener("mousemove", pan_canvas);
+    }
+  });
+
+  $("#canvas").on('mouseup', function(e) {
+    if( e.which == 2 ) {  // Middle click of the mouse
+      cvs_manager.stopPanningCamera(e);
+      this.addEventListener("mousemove", handle_mouse_move);
+      this.removeEventListener("mousemove", pan_canvas);
+    }
+  });
+
+  $("#canvas").on('mousemove', handle_mouse_move);
+
+  $("#canvas").on('mouseout', function(e) {
     write_angle("");
     write_distance("", 0);
     e.stopPropagation();
   });
 
-  $("#canvas").click(function(e) {
-    cvs_manager.drawing_step(e);
-    e.stopPropagation();
-  });
-
-  $("#clear").click(function(e) {
+  $("#clear").on('click', function(e) {
     cvs_manager.clear_data();
     e.stopPropagation();
   });
 
-  $("#undo").click(function(e) {
+  $("#undo").on('click', function(e) {
     cvs_manager.undo_action();
     e.stopPropagation();
   });
 
-  $('body').click(function(e){
+  $('body').on('click', function(e){
     cvs_manager.stop_drawing();
     e.stopPropagation();
   });
 
-  $(window).on('resize', function(){
+  $(window).on('resize', function(e){
     cvs_manager.rescale_canvas();
+    e.stopPropagation();
   });
 
-  $(document).keyup(function(e) {
+  $(document).on('keyup', function(e){
     if (e.key === "Escape") {
         cvs_manager.stop_drawing();
     }

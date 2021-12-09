@@ -24,7 +24,8 @@
   <style media="screen">
     body {
       background-color: ivory;
-      padding: 10px;
+      margin: 15px;
+      height: calc(100vh - 30px);
     }
 
     canvas {
@@ -32,6 +33,7 @@
       top: 0;
       left: 0;
       border: 1px solid red;
+      width: 100%;
     }
 
     .wrapper {
@@ -50,15 +52,28 @@
       position: absolute;
       top: 745;
     }
+
+    table, th, td {
+      border: 1px solid black;
+      border-collapse: collapse;
+    }
+
+    .tbl_draw_params_td {
+      width: 33.333%
+    }
   </style>
 
 </head>
 
 <body>
   <p>Drag to draw lines</p>
-  <div>Swim Heading: <div id="swim_heading" style="display: inline;"></div></div>
-  <div>Segment Swim Distance: <div id="segment_distance" style="display: inline;"></div></div>
-  <div>Edge Swim Distance: <div id="edge_distance" style="display: inline;"></div></div>
+  <table style="width:100%">
+    <tr>
+      <td class="tbl_draw_params_td">Swim Heading: <div id="swim_heading" style="display: inline;"></div></td>
+      <td class="tbl_draw_params_td">Segment Swim Distance: <div id="segment_distance" style="display: inline;"></div></td> 
+      <td class="tbl_draw_params_td">Edge Swim Distance: <div id="edge_distance" style="display: inline;"></div></td>
+    </tr>
+  </table>
 
   <br/>
   <div class="wrapper">
